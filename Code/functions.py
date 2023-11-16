@@ -58,7 +58,7 @@ def boundaries(mesh):
     return bx1,bx0,by0,by1,ds
         
 
-def solver(mesh,m0,dt,T,save_interval):
+def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
 
     bx1,bx0,by0,by1,ds = boundaries(mesh)
 
@@ -92,7 +92,7 @@ def solver(mesh,m0,dt,T,save_interval):
     d_n = 2.4
     n_steps = int(T/dt)
 
-    V = FunctionSpace(mesh,"P",2)
+    #V = FunctionSpace(mesh,"P",2)
     N = Function(V)
     C = Function(V)
     n = TrialFunction(V)
@@ -111,12 +111,14 @@ def solver(mesh,m0,dt,T,save_interval):
     bcs_c = [bc_c]
 
     mass = []
-    n_vect = [n0.vector().get_local().copy()]
-    c_vect = [c_k.vector().get_local().copy()]
+    n_vect = []
+    c_vect = []
     phi_vect = []
 
+    t=0
+    nfile.parameters['rewrite_function_mesh'] = False
+    cfile.parameters['rewrite_function_mesh'] = False
 
-    t=1
     while(t<n_steps):
         print('time=%g: ' % t)
 
@@ -137,6 +139,16 @@ def solver(mesh,m0,dt,T,save_interval):
             eps = np.linalg.norm(difference) / np.linalg.norm(c_k.vector())
             print('iter=%d: norm=%g' % (iter, eps))
             c_k.assign(C) 
+
+        if t % save_interval == 0:
+            n_vect.append(n0.vector().get_local().copy())
+            c_vect.append(C.vector().get_local().copy())
+            #phi_vect.append(phi_h)
+
+            nfile.write_checkpoint(N,"n",t,XDMFFile.Encoding.HDF5, True)
+            cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
+
+        mass.append(assemble(phi_h*dx))
     
         # solve n
         P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[1]-s_csc)/g_csc,2)) \
@@ -156,22 +168,7 @@ def solver(mesh,m0,dt,T,save_interval):
         solve(a_n==L_n,N)
         n0.assign(N)
 
-        if t % save_interval == 0:
-            n_vect.append(N.vector().get_local().copy())
-            c_vect.append(C.vector().get_local().copy())
-            #phi_vect.append(phi_h)
-        mass.append(assemble(phi_h*dx))
-
         t+=1
 
     return n_vect,c_vect,mass
     
-def plot(vect,dt,save_interval):
-
-    for i,x in enumerate(vect):
-        sol = plot(x)
-        plt.colorbar(sol)
-        plt.title('Time t=%f' %(i*save_interval*dt))
-        plt.xlabel('x')
-        plt.ylabel('s')
-        plt.show()
