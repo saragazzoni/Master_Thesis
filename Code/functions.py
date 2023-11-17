@@ -58,7 +58,7 @@ def boundaries(mesh):
     return bx1,bx0,by0,by1,ds
         
 
-def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
+def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
 
     bx1,bx0,by0,by1,ds = boundaries(mesh)
 
@@ -66,7 +66,7 @@ def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
     s0 = 0.5
     sigma = sqrt(0.02)
     Dxc = 4.32*1e3
-    gamma = 4*Dxc
+    gamma = 2*Dxc
     K_m = 0.0125
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
@@ -90,7 +90,14 @@ def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
     c_R = 0.1
     d_tdc = 0.024
     d_n = 2.4
+    OER = 3
+    alpha_min = 0.007
+    delta_alpha = 0.143
+    beta_min = 0.002
+    delta_beta = 0.018
+    k=3
     n_steps = int(T/dt)
+
 
     #V = FunctionSpace(mesh,"P",2)
     N = Function(V)
@@ -116,6 +123,8 @@ def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
     phi_vect = []
 
     t=0
+    i=0
+    d=0
     nfile.parameters['rewrite_function_mesh'] = False
     cfile.parameters['rewrite_function_mesh'] = False
 
@@ -156,18 +165,38 @@ def solver(mesh,V,m0,dt,T,save_interval,nfile,cfile):
                 p_csc=p_csc,p_dc=p_dc,K_csc=K_csc,K_dc=K_dc,g_csc=g_csc,g_dc=g_dc,s_csc=s_csc,s_dc=s_dc,phi=phi_h,c=C,degree=2)
         K = Expression('d_tdc * exp(-((1-x[1])/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                 d_tdc=d_tdc,d_n=d_n,g_tdc=g_tdc,epsilon_k=epsilon_k,c_N=c_N,c=C,degree=2)
-        F = Expression("P - K", degree=2, P=P, K=K)
+        
         vs = Expression('V_plus*tanh(x[1]/csi_plus)*tanh((1-x[1])/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                     - V_minus*tanh(x[1]/csi_minus)*tanh(pow(1-x[1],2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                     V_plus=V_plus,V_minus=V_minus,csi_minus=csi_minus,csi_plus=csi_plus,c_H=c_H,epsilon=epsilon,c=C,degree=2)
         vs = interpolate(vs,V)
+
+        a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=c_R,OER=OER,c=C,degree=2)
+        a2 = Expression('alpha_min + delta_alpha*tanh(k*x[1])',alpha_min=alpha_min,delta_alpha=delta_alpha,k=k,degree=2)
+        a3 = Expression('1+P/Pmax', P=P,Pmax=p_dc,degree=2)
+        a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
+        a = interpolate(a,V)
+        b1 = Expression('(c > c_R) ? 1 : pow(OER,-2)',c_R=c_R,OER=OER,c=C,degree=2)
+        b2 = Expression('beta_min + delta_beta*tanh(k*x[1])',beta_min=beta_min,delta_beta=delta_beta,k=k,degree=2)
+        b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
+        b = interpolate(b,V)
+
+        if i < len(times) and t == times[i]:
+            print(t,times[i])
+            d=doses[i]
+            i+=1
+
+        S_rt = Expression('-a*d - a*pow(d,2)', a=a, b=b, d=d,degree=2)
+        F = Expression("P - K + S_rt", degree=2, P=P, K=K, S_rt=S_rt)
+
         a_n = n*v*dx + dt*Dxn*inner(grad(n)[0],grad(v)[0])*dx + dt*Dsn*inner(grad(n)[1],grad(v)[1])*dx + dt*grad(vs*n)[1]*v*dx \
-            - dt*n*v*F*dx + dt*n*v*vs*ds(0) - dt*n*v*vs*ds(2)  #+ dt*vs.dx(1)*n*v*dx \
+            - dt*n*v*F*dx + dt*n*v*vs*ds(0) - dt*n*v*vs*ds(2) 
         L_n = n0*v*dx
 
         solve(a_n==L_n,N)
         n0.assign(N)
 
+        d=0
         t+=1
 
     return n_vect,c_vect,mass
