@@ -2,6 +2,7 @@ from dolfin import *
 from numpy.polynomial.legendre import leggauss
 import numpy as np
 from ufl import tanh
+import math
 
 class VerticalAverage(UserExpression):
     def __init__(self, f, quad_degree, **kwargs):
@@ -58,7 +59,7 @@ def boundaries(mesh):
     return bx1,bx0,by0,by1,ds
         
 
-def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
+def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
 
     bx1,bx0,by0,by1,ds = boundaries(mesh)
 
@@ -66,7 +67,7 @@ def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
     s0 = 0.5
     sigma = sqrt(0.02)
     Dxc = 4.32*1e3
-    gamma = 2*Dxc
+    gamma = 4*Dxc
     K_m = 0.0125
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
@@ -95,7 +96,7 @@ def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
     delta_alpha = 0.143
     beta_min = 0.002
     delta_beta = 0.018
-    k=3
+    k=1e3
     n_steps = int(T/dt)
 
 
@@ -108,10 +109,10 @@ def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
     w = TestFunction(V)
 
     # initial cell distribution
-    n0 = Expression("m0/(pow(2*pi,0.5)*sigma)*exp(-pow(x[1]-s0,2)/(2*sigma*sigma))",m0 = m0,s0 = s0,sigma=sigma,degree=2)
-    n0 = interpolate(n0,V)
+    #n0 = Expression("m0/(pow(2*pi,0.5)*sigma)*exp(-pow(x[1]-s0,2)/(2*sigma*sigma))",m0 = m0,s0 = s0,sigma=sigma,degree=2)
+    #n0 = interpolate(n0,V)
 
-    c_k = interpolate(Constant(1.0), V)
+    #c_k = interpolate(Constant(1.0), V)
     f = Constant(0.0)
     L_c = f*w*dx
     bc_c = DirichletBC(V,Constant(1.0),bx1)
@@ -125,11 +126,12 @@ def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
     t=0
     i=0
     d=0
+    counter=0
     nfile.parameters['rewrite_function_mesh'] = False
     cfile.parameters['rewrite_function_mesh'] = False
 
     while(t<n_steps):
-        print('time=%g: ' % t)
+        print('time=%g: ' %(t*dt))
 
         # update phi
         phi = VerticalAverage(n0, quad_degree=20, degree=2)
@@ -175,18 +177,21 @@ def solver(mesh,V,m0,dt,T,save_interval,times,doses,nfile,cfile):
         a2 = Expression('alpha_min + delta_alpha*tanh(k*x[1])',alpha_min=alpha_min,delta_alpha=delta_alpha,k=k,degree=2)
         a3 = Expression('1+P/Pmax', P=P,Pmax=p_dc,degree=2)
         a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
-        a = interpolate(a,V)
-        b1 = Expression('(c > c_R) ? 1 : pow(OER,-2)',c_R=c_R,OER=OER,c=C,degree=2)
+        #a = interpolate(a,V)
+        b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=c_R,OER=OER,c=C,degree=2)
         b2 = Expression('beta_min + delta_beta*tanh(k*x[1])',beta_min=beta_min,delta_beta=delta_beta,k=k,degree=2)
         b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
-        b = interpolate(b,V)
+        #b = interpolate(b,V)
 
-        if i < len(times) and t == times[i]:
-            print(t,times[i])
+        if i < len(times) and math.floor(t*dt) == times[i]:
+            print('dose')
             d=doses[i]
-            i+=1
+            counter += 1
+            if counter >= 1/dt:
+                i=i+1
+                counter=0
 
-        S_rt = Expression('-a*d - a*pow(d,2)', a=a, b=b, d=d,degree=2)
+        S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
         F = Expression("P - K + S_rt", degree=2, P=P, K=K, S_rt=S_rt)
 
         a_n = n*v*dx + dt*Dxn*inner(grad(n)[0],grad(v)[0])*dx + dt*Dsn*inner(grad(n)[1],grad(v)[1])*dx + dt*grad(vs*n)[1]*v*dx \
