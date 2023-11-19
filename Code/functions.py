@@ -21,6 +21,7 @@ class VerticalAverage(UserExpression):
 def boundaries(mesh):
     
     boundary_markers = MeshFunction('size_t', mesh,1)
+    subdomains_markers = MeshFunction('size_t', mesh,2)
 
     class BoundaryX0(SubDomain):
         tol = 1E-14
@@ -54,20 +55,39 @@ def boundaries(mesh):
     by0 = BoundaryY0()
     by0.mark(boundary_markers, 0)
 
-    ds = Measure("ds",domain=mesh, subdomain_data=boundary_markers)
+    class Omega_CSC(SubDomain):
+        def inside(self, x, on_boundary):
+            return x[1] <= 0.3 + 1E-14
 
-    return bx1,bx0,by0,by1,ds
+    class Omega_DC(SubDomain):
+        def inside(self, x, on_boundary): 
+            return x[1] > 0.3 - 1E-14 and x[1] <= 0.8 + 1E-14
+        
+    class Omega_TDC(SubDomain):
+        def inside(self, x, on_boundary): 
+            return x[1] > 0.8 - 1E-14
+        
+    subdomain_CSC = Omega_CSC()
+    subdomain_DC = Omega_DC()
+    subdomain_TDC = Omega_TDC()
+    subdomain_CSC.mark(subdomains_markers, 0)
+    subdomain_DC.mark(subdomains_markers, 1)
+    subdomain_TDC.mark(subdomains_markers, 3)
+
+    ds = Measure("ds",domain=mesh, subdomain_data=boundary_markers)
+    dx = Measure("dx",domain=mesh, subdomain_data=subdomains_markers)
+
+    return bx1,bx0,by0,by1,ds,dx
         
 
 def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
 
-    bx1,bx0,by0,by1,ds = boundaries(mesh)
+    bx1,bx0,by0,by1,ds,dx = boundaries(mesh)
 
     # parameters setting 
-    s0 = 0.5
-    sigma = sqrt(0.02)
+    
     Dxc = 4.32*1e3
-    gamma = 4*Dxc
+    gamma = 2*Dxc
     K_m = 0.0125
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
@@ -121,7 +141,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     mass = []
     n_vect = []
     c_vect = []
-    phi_vect = []
+    csc_mass = []
 
     t=0
     i=0
@@ -160,6 +180,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
             cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
 
         mass.append(assemble(phi_h*dx))
+        #csc_mass.append(assemble(N*dx(0))/mass[-1])
     
         # solve n
         P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[1]-s_csc)/g_csc,2)) \
@@ -183,14 +204,11 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
         #b = interpolate(b,V)
 
-        if i < len(times) and math.floor(t*dt) == times[i]:
+        if i < len(times) and t*dt == times[i]:
             print('dose')
             d=doses[i]
-            counter += 1
-            if counter >= 1/dt:
-                i=i+1
-                counter=0
-
+            i+=1
+                
         S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
         F = Expression("P - K + S_rt", degree=2, P=P, K=K, S_rt=S_rt)
 
