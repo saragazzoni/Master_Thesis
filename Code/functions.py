@@ -87,7 +87,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     # parameters setting 
     
     Dxc = 4.32*1e3
-    gamma = 2*Dxc
+    gamma = 4*Dxc
     K_m = 0.0125
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
@@ -116,7 +116,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     delta_alpha = 0.143
     beta_min = 0.002
     delta_beta = 0.018
-    k=1e3
+    k=5
     n_steps = int(T/dt)
 
 
@@ -176,7 +176,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
             c_vect.append(C.vector().get_local().copy())
             #phi_vect.append(phi_h)
 
-            nfile.write_checkpoint(N,"n",t,XDMFFile.Encoding.HDF5, True)
+            nfile.write_checkpoint(n0,"n",t,XDMFFile.Encoding.HDF5, True)
             cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
 
         mass.append(assemble(phi_h*dx))
