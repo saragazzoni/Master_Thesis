@@ -26,7 +26,7 @@ def boundaries(mesh):
     class BoundaryX0(SubDomain):
         tol = 1E-14
         def inside(self, x, on_boundary):
-            return on_boundary and near(x[0], 0, 1E-14)
+            return on_boundary and near(x[0], -1, 1E-14)
 
     bx0 = BoundaryX0()
     bx0.mark(boundary_markers, 3)
@@ -78,7 +78,7 @@ def boundaries(mesh):
     dx = Measure("dx",domain=mesh, subdomain_data=subdomains_markers)
 
     return bx1,bx0,by0,by1,ds,dx
-        
+
 
 def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
 
@@ -135,8 +135,9 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     #c_k = interpolate(Constant(1.0), V)
     f = Constant(0.0)
     L_c = f*w*dx
-    bc_c = DirichletBC(V,Constant(1.0),bx1)
-    bcs_c = [bc_c]
+    bc_c1 = DirichletBC(V,Constant(1.0),bx0)
+    bc_c2 = DirichletBC(V,Constant(1.0),bx1)
+    bcs_c = [bc_c1,bc_c2]
 
     mass = []
     n_vect = []
@@ -146,7 +147,8 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     t=0
     i=0
     d=0
-    counter=0
+    delta = 1/dt
+    counter = 0
     nfile.parameters['rewrite_function_mesh'] = False
     cfile.parameters['rewrite_function_mesh'] = False
 
@@ -204,10 +206,15 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
         #b = interpolate(b,V)
 
-        if i < len(times) and t*dt == times[i]:
+
+        if i < len(times) and math.floor(t*dt) == times[i]:
             print('dose')
-            d=doses[i]
-            i+=1
+            d=doses[i]/delta
+            print(d)
+            counter+=1
+            if counter >= delta:
+                i+=1
+                counter = 0
                 
         S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
         F = Expression("P - K + S_rt", degree=2, P=P, K=K, S_rt=S_rt)
