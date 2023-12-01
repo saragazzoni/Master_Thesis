@@ -72,7 +72,7 @@ def boundaries(mesh):
     subdomain_TDC = Omega_TDC()
     subdomain_CSC.mark(subdomains_markers, 0)
     subdomain_DC.mark(subdomains_markers, 1)
-    subdomain_TDC.mark(subdomains_markers, 3)
+    subdomain_TDC.mark(subdomains_markers, 2)
 
     ds = Measure("ds",domain=mesh, subdomain_data=boundary_markers)
     dx = Measure("dx",domain=mesh, subdomain_data=subdomains_markers)
@@ -143,12 +143,13 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     n_vect = []
     c_vect = []
     csc_mass = []
+    dc_mass = []
+    tdc_mass = []
 
     t=0
     i=0
     d=0
-    delta = 1/dt
-    counter = 0
+
     nfile.parameters['rewrite_function_mesh'] = False
     cfile.parameters['rewrite_function_mesh'] = False
 
@@ -182,7 +183,9 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
             cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
 
         mass.append(assemble(phi_h*dx))
-        #csc_mass.append(assemble(N*dx(0))/mass[-1])
+        csc_mass.append(assemble(n0*dx(0))/mass[-1])
+        dc_mass.append(assemble(n0*dx(1))/mass[-1])
+        tdc_mass.append(assemble(n0*dx(2))/mass[-1])
     
         # solve n
         P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[1]-s_csc)/g_csc,2)) \
@@ -217,10 +220,10 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
                # counter = 0
                 
         S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
-        F = Expression("P - K + S_rt", degree=2, P=P, K=K, S_rt=S_rt)
+        F = Expression("P - K", degree=2, P=P, K=K)
 
         a_n = n*v*dx + dt*Dxn*inner(grad(n)[0],grad(v)[0])*dx + dt*Dsn*inner(grad(n)[1],grad(v)[1])*dx + dt*grad(vs*n)[1]*v*dx \
-            - dt*n*v*F*dx + dt*n*v*vs*ds(0) - dt*n*v*vs*ds(2) 
+            - dt*n*v*F*dx - n*v*S_rt*dx  + dt*n*v*vs*ds(0) - dt*n*v*vs*ds(2) 
         L_n = n0*v*dx
 
         solve(a_n==L_n,N)
@@ -229,5 +232,5 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         d=0
         t+=1
 
-    return n_vect,c_vect,mass
+    return n_vect,c_vect,mass,csc_mass,dc_mass,tdc_mass
     
