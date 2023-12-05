@@ -87,8 +87,8 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     # parameters setting 
     
     Dxc = 4.32*1e3
-    gamma = 4*Dxc
-    K_m = 0.0125
+    gamma = 2*Dxc
+    K_m = 1e-5
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
     p_csc = 0.12
@@ -212,12 +212,9 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
 
         if i < len(times) and t*dt == times[i]: #math.floor(t*dt) == times[i]:  
             print('dose')
-            d=doses[i]#/delta
+            d=doses[i]
             print(d)
-            #counter+=1
-            #if counter >= delta:
             i+=1
-               # counter = 0
                 
         S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
         F = Expression("P - K", degree=2, P=P, K=K)
