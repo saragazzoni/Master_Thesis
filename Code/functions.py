@@ -87,8 +87,8 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     # parameters setting 
     
     Dxc = 4.32*1e3
-    gamma = 2*Dxc
-    K_m = 1e-5
+    gamma = 4*Dxc
+    K_m = 1e-4
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
     p_csc = 0.12
@@ -134,7 +134,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
 
     #c_k = interpolate(Constant(1.0), V)
     f = Constant(0.0)
-    L_c = f*w*dx
+    #L_c = f*w*dx
     #bc_c1 = DirichletBC(V,Constant(0.5),bx0)
     bc_c2 = DirichletBC(V,Constant(1.0),bx1)
     bcs_c = [bc_c2]
@@ -159,11 +159,12 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         # update phi
         phi = VerticalAverage(n0, quad_degree=20, degree=2)
         phi_h = interpolate(phi, V)
-        a_c = Dxc * inner(grad(c)[0],grad(w)[0])*dx + gamma/(c_k + K_m)*phi_h*c*w*dx
+        a_c = Dxc * inner(grad(c)[0],grad(w)[0])*dx # + gamma/(c_k + K_m)*phi_h*c*w*dx
+        L_c = f*w*dx - gamma*(0.5 + 0.5*tanh((c_k-c_N)/0.05))*phi_h*w*dx
         
         # fixed point -> solve c
         eps= 1.0
-        tol = 1.0E-3    
+        tol = 1.0E-3
         iter = 0        
         maxiter = 30    
         while eps > tol and iter < maxiter:
@@ -208,7 +209,6 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         b2 = Expression('beta_min + delta_beta*tanh(k*x[1])',beta_min=beta_min,delta_beta=delta_beta,k=k,degree=2)
         b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
         #b = interpolate(b,V)
-
 
         if i < len(times) and t*dt == times[i]: #math.floor(t*dt) == times[i]:  
             print('dose')
