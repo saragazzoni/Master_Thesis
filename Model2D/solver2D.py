@@ -161,11 +161,13 @@ class Solver2D:
         c = TrialFunction(self.V)
         w = TestFunction(self.V)
 
-        f = Constant(0.0)
-        L_c = f*w*dx 
+        # f = Constant(0.0)
+        # L_c = f*w*dx 
 
-        bc_c = DirichletBC(self.V,Constant(1.0),self.bx1)
-        bcs_c = [bc_c]
+        Vc = Expression('exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
+
+        # bc_c = DirichletBC(self.V,Constant(1.0),self.bx1)
+        # bcs_c = [bc_c]
 
         mass = []
         n_vect = []
@@ -190,13 +192,14 @@ class Solver2D:
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi_h*c*w*dx
+            L_c = Vc*w*dx
             
             # fixed point -> solve c
             iter = 0  
             eps= 1.0
             while eps > tol and iter < maxiter:
                 iter += 1
-                solve(a_c==L_c,C,bcs_c)
+                solve(a_c==L_c,C) #,bcs_c)
                 difference = C.vector() - self.c_k.vector()
                 eps = np.linalg.norm(difference) / np.linalg.norm(self.c_k.vector())
                 print('iter=%d: norm=%g' % (iter, eps))
