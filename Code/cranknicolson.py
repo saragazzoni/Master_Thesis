@@ -88,7 +88,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
     
     Dxc = 4.32*1e3
     gamma = 4*Dxc
-    K_m = 0.0125
+    K_m = 0.001
     Dxn = 2.4*1e-3
     Dsn = 1.2*1e-4
     p_csc = 0.12
@@ -161,6 +161,7 @@ def solver(mesh,V,n0,c_k,dt,T,save_interval,times,doses,nfile,cfile):
         phi = VerticalAverage(n0, quad_degree=20, degree=2)
         phi_h = interpolate(phi, V)
         a_c = Dxc * inner(grad(c)[0],grad(w)[0])*dx + gamma/(c_k + K_m)*phi_h*c*w*dx
+        #L_c = - gamma*(0.5 + 0.5*tanh((c_k-c_N)/0.05))*phi_h*w*dx
         
         # fixed point -> solve c
         eps= 1.0

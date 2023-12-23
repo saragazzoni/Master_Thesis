@@ -173,8 +173,8 @@ class Solver1D:
             # update phi
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
-            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma/(self.c_k + self.K_m)*phi_h*c*w*dx
-            L_c = f*w*dx #- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
+            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*(0.5*c/(self.c_k + self.K_m))*phi_h*w*dx
+            L_c = f*w*dx - self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
             
             # fixed point -> solve c
             eps= 1.0
