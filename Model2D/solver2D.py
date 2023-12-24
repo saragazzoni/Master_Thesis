@@ -75,7 +75,7 @@ class Solver2D:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], 0, 1E-14)
+                return on_boundary and near(x[0], -1, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -99,7 +99,7 @@ class Solver2D:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], 0, 1E-14)
+                return on_boundary and near(x[1], -1, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -152,6 +152,7 @@ class Solver2D:
 
         nfile = XDMFFile(self.path_sol + "/" + "n.xdmf")
         cfile = XDMFFile(self.path_sol + "/" + "c.xdmf")
+        phifile = XDMFFile(self.path_sol + "/" + "phi.xdmf")
     
         #V = FunctionSpace(mesh,"P",2)
         N = Function(self.V)
@@ -164,10 +165,13 @@ class Solver2D:
         # f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
-
-        # bc_c = DirichletBC(self.V,Constant(1.0),self.bx1)
-        # bcs_c = [bc_c]
+        Vc = Expression('100*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
+        
+        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
+        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1,bc_x0,bc_y0,bc_y1]
 
         mass = []
         n_vect = []
@@ -175,6 +179,7 @@ class Solver2D:
         csc_mass = []
         dc_mass = []
         tdc_mass = []
+        phi_vect = []
 
         t=0
         i=0
@@ -199,7 +204,7 @@ class Solver2D:
             eps= 1.0
             while eps > tol and iter < maxiter:
                 iter += 1
-                solve(a_c==L_c,C) #,bcs_c)
+                solve(a_c==L_c,C,bcs_c)
                 difference = C.vector() - self.c_k.vector()
                 eps = np.linalg.norm(difference) / np.linalg.norm(self.c_k.vector())
                 print('iter=%d: norm=%g' % (iter, eps))
@@ -210,12 +215,13 @@ class Solver2D:
                 c_vect.append(C.vector().get_local().copy())
                 nfile.write_checkpoint(self.n0,"n",t,XDMFFile.Encoding.HDF5, True)
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
+                phifile.write_checkpoint(phi_h,"phi",t,XDMFFile.Encoding.HDF5, True)
 
             mass.append(assemble(phi_h*dx))
             csc_mass.append(assemble(self.n0*dx(0))/mass[-1])
             dc_mass.append(assemble(self.n0*dx(1))/mass[-1])
             tdc_mass.append(assemble(self.n0*dx(2))/mass[-1])
-        
+           
             # solve n
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[2]-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((x[2]-s_dc)/g_dc,2)))*(1-phi)',
@@ -249,7 +255,7 @@ class Solver2D:
             F = Expression("P - K", degree=2, P=P, K=K)
 
             a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx + self.dt*self.Dxn*inner(grad(n)[1],grad(v)[1])*dx \
-                  + self.dt*self.Dsn*inner(grad(n)[2],grad(v)[2])*dx + self.dt*grad(vs*n)[2]*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx  \
+                  + self.dt*self.Dsn*inner(grad(n)[2],grad(v)[2])*dx + self.dt*grad(vs*n)[2]*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx \
                   + self.dt*n*v*vs*self.ds(3) - self.dt*n*v*vs*self.ds(4) 
             L_n = self.n0*v*dx
 
@@ -264,4 +270,4 @@ class Solver2D:
         np.save(self.path_sol + "/" + "dc_mass.npy", dc_mass)
         np.save(self.path_sol + "/" + "tdc_mass.npy", tdc_mass)
 
-        return n_vect,c_vect,mass,csc_mass,dc_mass,tdc_mass
+        return n_vect,c_vect,mass,csc_mass,dc_mass,tdc_mass,phi_vect

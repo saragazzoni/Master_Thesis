@@ -76,7 +76,7 @@ class Solver1D:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], 0, 1E-14)
+                return on_boundary and near(x[0], -1, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -100,7 +100,7 @@ class Solver1D:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], 0, 1E-14)
+                return on_boundary and near(x[1], -1, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -143,8 +143,8 @@ class Solver1D:
         f = Constant(0.0)
         #L_c = f*w*dx
         # bc_c1 = DirichletBC(V,Constant(0.5),bx0)
-        bc_c = DirichletBC(self.V,Constant(1.0),self.bx1)
-        bcs_c = [bc_c]
+        # bc_c = DirichletBC(self.V,Constant(1.0),self.bx1)
+        # bcs_c = [bc_c]
 
         mass = []
         n_vect = []
@@ -162,10 +162,10 @@ class Solver1D:
         i=0
         d=0
 
-        # Vc = Expression('exp(-(x[0]-x0)*(x[0]-x0)/(sigma_v*sigma_v))',sigma_v = 0.01, x0=0.5, degree=2)
-        # bc_c1 = DirichletBC(self.V,Vc,self.bx1)
-        # bc_c0 = DirichletBC(self.V,Vc,self.bx0)
-        # bcs_c = [bc_c1]
+        Vc = Expression('10000*exp(-(x[0]-x0)*(x[0]-x0)/(sigma_v*sigma_v))',sigma_v = 0.01, x0=0, degree=2)
+        bc_c1 = DirichletBC(self.V,Constant(0.0),self.bx1)
+        bc_c0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        bcs_c = [bc_c0,bc_c1]
 
         while(t<n_steps):
             print('time=%g: ' %(t*self.dt))
@@ -173,8 +173,8 @@ class Solver1D:
             # update phi
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
-            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*(0.5*c/(self.c_k + self.K_m))*phi_h*w*dx
-            L_c = f*w*dx - self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
+            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*c/(self.c_k + self.K_m)*phi_h*w*dx
+            L_c = Vc*w*dx #- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
             
             # fixed point -> solve c
             eps= 1.0

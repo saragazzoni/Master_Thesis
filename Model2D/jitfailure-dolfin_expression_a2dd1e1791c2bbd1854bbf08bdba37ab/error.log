@@ -1,0 +1,12 @@
+/tmp/tmp7ltqdl60/dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab.cpp: In member function 'virtual void dolfin::dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab::eval(Eigen::Ref<Eigen::Matrix<double, -1, 1> >, Eigen::Ref<const Eigen::Matrix<double, -1, 1> >) const':
+/tmp/tmp7ltqdl60/dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab.cpp:65:148: error: expected ';' before ')' token
+   65 |           values[0] = m0/(pow(2*pi,0.5)*sigma)*exp(-pow(x[2]-s0,2)/(2*sigma*sigma)) - x[0]*x[0]/(2*sigma_x*sigma_x) - x[1]*x[1]/(2*sigma_x*sigma_x));
+      |                                                                                                                                                    ^
+      |                                                                                                                                                    ;
+/tmp/tmp7ltqdl60/dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab.cpp: In member function 'virtual double dolfin::dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab::get_property(std::string) const':
+/tmp/tmp7ltqdl60/dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab.cpp:77:11: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+   77 |           if (name == "m0") return m0;          if (name == "s0") return s0;          if (name == "sigma") return sigma;          if (name == "sigma_x") return sigma_x;
+      |           ^~
+/tmp/tmp7ltqdl60/dolfin_expression_a2dd1e1791c2bbd1854bbf08bdba37ab.cpp:77:49: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+   77 |           if (name == "m0") return m0;          if (name == "s0") return s0;          if (name == "sigma") return sigma;          if (name == "sigma_x") return sigma_x;
+      |                                                 ^~
