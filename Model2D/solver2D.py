@@ -165,7 +165,7 @@ class Solver2D:
         # f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('100*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
+        Vc = Expression('1e8*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
         
         bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
         bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
@@ -255,6 +255,7 @@ class Solver2D:
             F = Expression("P - K", degree=2, P=P, K=K)
 
             a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx + self.dt*self.Dxn*inner(grad(n)[1],grad(v)[1])*dx \
+                  + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[1])*dx + self.dt*self.Dxn*inner(grad(n)[1],grad(v)[0])*dx \
                   + self.dt*self.Dsn*inner(grad(n)[2],grad(v)[2])*dx + self.dt*grad(vs*n)[2]*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx \
                   + self.dt*n*v*vs*self.ds(3) - self.dt*n*v*vs*self.ds(4) 
             L_n = self.n0*v*dx
