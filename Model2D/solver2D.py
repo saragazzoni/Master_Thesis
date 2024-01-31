@@ -165,7 +165,7 @@ class Solver2D:
         # f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('1e6*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.1,degree=2)
+        Vc = Expression('1e6*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.01,degree=2)
         
         bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
         bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
@@ -218,9 +218,9 @@ class Solver2D:
                 phifile.write_checkpoint(phi_h,"phi",t,XDMFFile.Encoding.HDF5, True)
 
             mass.append(assemble(phi_h*dx))
-            csc_mass.append(assemble(self.n0*dx(0))/mass[-1])
-            dc_mass.append(assemble(self.n0*dx(1))/mass[-1])
-            tdc_mass.append(assemble(self.n0*dx(2))/mass[-1])
+            csc_mass.append(assemble(self.n0*self.dx(0))/mass[-1])
+            dc_mass.append(assemble(self.n0*self.dx(1))/mass[-1])
+            tdc_mass.append(assemble(self.n0*self.dx(2))/mass[-1])
            
             # solve n
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[2]-s_csc)/g_csc,2)) \

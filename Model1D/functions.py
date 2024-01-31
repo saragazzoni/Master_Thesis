@@ -175,14 +175,18 @@ class Solver1D:
 
             # update phi
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
+            # print(phi.x)
+            # print(phi.weights)
+            # stop
+
             phi_h = interpolate(phi, self.V)
             
             mesh1D = IntervalMesh(20,0,1)
             V1D = FunctionSpace(mesh1D,'CG',1)
             phi1D = interpolate(phi_h,V1D)
             plot(phi1D)
+            # plt.ylim([0,0.01])
             plt.show()
-            stop
             a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*c/(self.c_k + self.K_m)*phi_h*w*dx
             L_c = f*w*dx #- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
             

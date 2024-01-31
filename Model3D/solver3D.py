@@ -130,7 +130,7 @@ class Solver3D:
         nh0 = Function(self.V)
         nh1 = Function(self.V)
 
-        dz = 0.1
+        dz = 0.05
         s_steps = int(1/dz)
         n0_array = [Function(self.V) for _ in range(s_steps)]
 
@@ -165,21 +165,12 @@ class Solver3D:
         for s in range(s_steps):
             temp = Function(self.V)
             self.n0.s = s*dz
-            # self.n0 = interpolate(self.n0,self.V)
-            # temp.vector()[:] = self.n0.vector()[:]
             temp.assign(self.n0)
             n0_array[s] = temp
-            print('s',s*dz)
             temp = interpolate(temp,self.V)
-            plot(temp)
-            plt.show()
             phi.assign(phi + temp)
         phi.assign(phi/s_steps)
-
         phi = interpolate(phi,self.V)
-        plot(phi)
-        plt.show()
-        stop
 
         while(t < n_steps):
             print('time=%g: ' %(t*self.dt))
@@ -187,7 +178,6 @@ class Solver3D:
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx
             L_c = f*w*dx
             
-            # fixed point -> solve c
             iter = 0  
             eps= 1.0
             while eps > tol and iter < maxiter:
@@ -200,36 +190,38 @@ class Solver3D:
 
             if t % self.save_interval == 0:
                 # n_vect.append(n0_array.vector().get_local().copy())
-                # c_vect.append(C.vector().get_local().copy())
+                c_vect.append(C.vector().get_local().copy())
                 # nfile.write_checkpoint(self.n0,"n",t,XDMFFile.Encoding.HDF5, True)
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
-
+            # c_kh = interpolate(self.c_k,self.V)
+            # plot(c_kh)
+            # plt.show()
+            
             mass.append(assemble(phi*dx))
-            # phi = interpolate(phi,self.V)
 
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                         + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                         p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=s,c=C,degree=2)
+                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=dz,c=C,degree=2)
             K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
-                    d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s,degree=2)
+                    d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=dz,degree=2)
             vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                         - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                         V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=s,degree=2)
+                        epsilon=self.epsilon,c=C,s=dz,degree=2)
             vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                         - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                         V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=s-1,degree=2)
+                        epsilon=self.epsilon,c=C,s=0,degree=2)
             # vs = interpolate(vs,self.V)
 
             a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=s,degree=2)
+            a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=dz,degree=2)
             a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
             a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
             #a = interpolate(a,V)
             b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=s,degree=2)
+            b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=dz,degree=2)
             b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
             if i < len(self.times) and self.t*self.dt == self.times[i]: 
                     print('dose')
@@ -241,73 +233,148 @@ class Solver3D:
             F = Expression("P - K", degree=2, P=P, K=K)
 
             a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                - 2*(1/(dz*dz))*self.dt*self.Dsn*n*v*dx + self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-            L_n = n0_array[1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx + (1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx
+                - 2*(1/(dz*dz))*self.dt*self.Dsn*n*v*dx + (1/dz)*self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
+            L_n = n0_array[1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx - 2*(1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx
 
             nh1.assign(nh0)
-            nh0.assign(N)
-            phi.assign(N)
+            nh0.assign(N) 
+            temp2 = Function(self.V)
+            temp2.assign(N)
+            phi.assign(temp2)
+            n0_array[1] = temp2
+
+            # print('s=%g: ' %((s+1)*dz))
+            # temp2 = interpolate(temp2,self.V)
+            # plot(temp2)
+            # plt.ylim([0,0.01])
+            # plt.show()
+
             s=1
         
             while(s < s_steps-2):     
-                P.s = s+1
-                K.s = s+1
-                vs.s = s+1
-                vs0.s = s
-                a3.P = P
-                a2.s = s+1
-                b2.s = s+1
-                a.a2 = a2
-                a.a3 = a3
-                b.b2 = b2
-                S_rt.a = a
-                S_rt.b = b
-                F.P = P
-                F.K = K
+                # P.s = s+1
+                # K.s = s+1
+                # vs.s = s+1
+                # vs0.s = s
+                # a3.P = P
+                # a2.s = s+1
+                # b2.s = s+1
+                # a.a2 = a2
+                # a.a3 = a3
+                # b.b2 = b2
+                # S_rt.a = a
+                # S_rt.b = b
+                # F.P = P
+                # F.K = K
+
+                P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
+                        + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
+                        p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
+                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
+                K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
+                        d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
+                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                            - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                            V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                            epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
+                vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                            - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                            V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                            epsilon=self.epsilon,c=C,s=s*dz,degree=2)
+                # vs = interpolate(vs,self.V)
+
+                a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+                a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=(s+1)*dz,degree=2)
+                a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
+                a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
+                #a = interpolate(a,V)
+                b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+                b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=(s+1)*dz,degree=2)
+                b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)            
+                S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
+                F = Expression("P - K", degree=2, P=P, K=K)
+                
+                # vs = interpolate(vs,self.V)
+                # plot(vs)
+                # plt.show()
 
                 a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                    - (1/(dz*dz))*self.dt*self.Dsn*n*v*dx + self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-                L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx + (1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx - (1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
+                    - (1/(dz*dz))*self.dt*self.Dsn*n*v*dx + (1/dz)*self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
+                L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx - 2*(1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx + (1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
 
                 solve(a_n==L_n,N)
+
                 nh1.assign(nh0)
-                nh0.assign(N)
-                self.n0.assign(N)
+                nh0.assign(N) 
+                temp3 = Function(self.V)
+                temp3.assign(N)
+                phi.assign(temp3 + phi)
+                n0_array[s+1] = temp3
 
-                phi.assign(phi + self.n0)
+                # print('s=%g: ' %((s+1)*dz))
+                # temp3 = interpolate(temp3,self.V)
+                # print(temp3(0.5))
+                # plot(temp3)
+                # plt.ylim([0,0.01])
+                # plt.show()
 
-                
                 s+=1
             
             # last step
             
-            P.s = s+1
-            K.s = s+1
-            vs.s = s+1
-            vs0.s = s
-            a3.P = P
-            a2.s = s+1
-            b2.s = s+1
-            a.a2 = a2
-            a.a3 = a3
-            b.b2 = b2
-            S_rt.a = a
-            S_rt.b = b
-            F.P = P
-            F.K = K
+            P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
+                        + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
+                        p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
+                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
+            K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
+                    d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
+            vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                        epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
+            vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                        epsilon=self.epsilon,c=C,s=s*dz,degree=2)
+            # vs = interpolate(vs,self.V)
+
+            a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+            a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=(s+1)*dz,degree=2)
+            a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
+            a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
+            #a = interpolate(a,V)
+            b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+            b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=(s+1)*dz,degree=2)
+            b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)            
+            S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
+            F = Expression("P - K", degree=2, P=P, K=K)
+            
             
             a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                    - (1/(dz*dz))*self.dt*self.Dsn*n*v*dx + self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-            L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx - 2*(1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
-
+                    + 2*(1/(dz*dz))*self.dt*self.Dsn*n*v*dx + self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
+            L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx + 2*(1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
             solve(a_n==L_n,N)
+
             nh1.assign(nh0)
-            nh0.assign(N)
-            self.n0.assign(N)
-
-            phi.assign(phi + self.n0)
-
+            nh0.assign(N) 
+            temp3 = Function(self.V)
+            temp3.assign(N)
+            phi.assign(temp3 + phi)
+            n0_array[s+1] = temp3
             phi.assign(phi/s_steps)
+
+            # print('s=%g: ' %((s+1)*dz))
+            # temp3 = interpolate(temp3,self.V)
+            # plot(temp3)
+            # plt.ylim([0,0.01])
+            # plt.show()
+
+            # phi = interpolate(phi,self.V)
+            # plot(phi)
+            # # plt.ylim([0,0.01])
+            # plt.show()
+
+
             d=0
             t+=1
         
