@@ -3,6 +3,10 @@ from numpy.polynomial.legendre import leggauss
 import numpy as np
 from ufl import tanh
 import matplotlib.pyplot as plt
+from scipy import sparse
+from xii import *
+from block import *
+from scipy.sparse.linalg import *
 
 class VerticalAverage(UserExpression):
     def __init__(self, f, quad_degree, **kwargs):
@@ -13,7 +17,7 @@ class VerticalAverage(UserExpression):
         assert f.ufl_shape == ()
         
     def eval(self, values, x):
-        values[0] = 0.5*sum(wq*self.f(x[0],x[1], xq) for xq, wq in zip(self.x, self.weights))
+        values[0] = 0.5*sum(wq*self.f(x[0], xq) for xq, wq in zip(self.x, self.weights))
 
     def value_shape(self):
         return ()
@@ -122,17 +126,16 @@ class Solver3D:
         #V = FunctionSpace(mesh,"P",2)
         N = Function(self.V)
         C = Function(self.V)
-        n = TrialFunction(self.V)
+        # n = TrialFunction(self.V)
         v = TestFunction(self.V)
+        
         c = TrialFunction(self.V)
         w = TestFunction(self.V)
         phi = Function(self.V)
         nh0 = Function(self.V)
         nh1 = Function(self.V)
 
-        dz = 0.05
-        s_steps = int(1/dz)
-        n0_array = [Function(self.V) for _ in range(s_steps)]
+        
 
         f = Constant(0.0)
         # L_c = f*w*dx 
@@ -162,221 +165,179 @@ class Solver3D:
         nfile.parameters['rewrite_function_mesh'] = False
         cfile.parameters['rewrite_function_mesh'] = False
 
-        for s in range(s_steps):
-            temp = Function(self.V)
-            self.n0.s = s*dz
-            temp.assign(self.n0)
-            n0_array[s] = temp
-            temp = interpolate(temp,self.V)
-            phi.assign(phi + temp)
-        phi.assign(phi/s_steps)
-        phi = interpolate(phi,self.V)
 
-        while(t < n_steps):
-            print('time=%g: ' %(t*self.dt))
+        phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
+        phi_h = interpolate(phi, self.V)
 
-            a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx
-            L_c = f*w*dx
-            
-            iter = 0  
-            eps= 1.0
-            while eps > tol and iter < maxiter:
-                iter += 1
-                solve(a_c==L_c,C,bcs_c)
-                difference = C.vector() - self.c_k.vector()
-                eps = np.linalg.norm(difference) / np.linalg.norm(self.c_k.vector())
-                print('iter=%d: norm=%g' % (iter, eps))
-                self.c_k.assign(C) 
+        # while(t < n_steps):
+            # print('time=%g: ' %(t*self.dt))
 
-            if t % self.save_interval == 0:
-                # n_vect.append(n0_array.vector().get_local().copy())
-                c_vect.append(C.vector().get_local().copy())
-                # nfile.write_checkpoint(self.n0,"n",t,XDMFFile.Encoding.HDF5, True)
-                cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
-            # c_kh = interpolate(self.c_k,self.V)
-            # plot(c_kh)
-            # plt.show()
-            
-            mass.append(assemble(phi*dx))
-
-            P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
-                        + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
-                        p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=dz,c=C,degree=2)
-            K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
-                    d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=dz,degree=2)
-            vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=dz,degree=2)
-            vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=0,degree=2)
-            # vs = interpolate(vs,self.V)
-
-            a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=dz,degree=2)
-            a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
-            a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
-            #a = interpolate(a,V)
-            b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=dz,degree=2)
-            b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
-            if i < len(self.times) and self.t*self.dt == self.times[i]: 
-                    print('dose')
-                    d=self.doses[i]
-                    print(d)
-                    i+=1
-                        
-            S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
-            F = Expression("P - K", degree=2, P=P, K=K)
-
-            a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                - 2*(1/(dz*dz))*self.dt*self.Dsn*n*v*dx + (1/dz)*self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-            L_n = n0_array[1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx - 2*(1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx
-
-            nh1.assign(nh0)
-            nh0.assign(N) 
-            temp2 = Function(self.V)
-            temp2.assign(N)
-            phi.assign(temp2)
-            n0_array[1] = temp2
-
-            # print('s=%g: ' %((s+1)*dz))
-            # temp2 = interpolate(temp2,self.V)
-            # plot(temp2)
-            # plt.ylim([0,0.01])
-            # plt.show()
-
-            s=1
+        a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi_h*c*w*dx
+        L_c = f*w*dx
         
-            while(s < s_steps-2):     
-                # P.s = s+1
-                # K.s = s+1
-                # vs.s = s+1
-                # vs0.s = s
-                # a3.P = P
-                # a2.s = s+1
-                # b2.s = s+1
-                # a.a2 = a2
-                # a.a3 = a3
-                # b.b2 = b2
-                # S_rt.a = a
-                # S_rt.b = b
-                # F.P = P
-                # F.K = K
+        iter = 0  
+        eps= 1.0
+        while eps > tol and iter < maxiter:
+            iter += 1
+            solve(a_c==L_c,C,bcs_c)
+            difference = C.vector() - self.c_k.vector()
+            eps = np.linalg.norm(difference) / np.linalg.norm(self.c_k.vector())
+            print('iter=%d: norm=%g' % (iter, eps))
+            self.c_k.assign(C) 
 
-                P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
-                        + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
-                        p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
-                K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
-                        d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
-                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                            - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                            V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
-                vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                            - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                            V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=s*dz,degree=2)
-                # vs = interpolate(vs,self.V)
+        # if t % self.save_interval == 0:
+        #     c_vect.append(C.vector().get_local().copy())
+        #     cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
+        
+        # mass.append(assemble(phi*dx))
 
-                a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-                a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=(s+1)*dz,degree=2)
-                a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
-                a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
-                #a = interpolate(a,V)
-                b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-                b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=(s+1)*dz,degree=2)
-                b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)            
-                S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
-                F = Expression("P - K", degree=2, P=P, K=K)
-                
-                # vs = interpolate(vs,self.V)
-                # plot(vs)
-                # plt.show()
+       
 
-                a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                    - (1/(dz*dz))*self.dt*self.Dsn*n*v*dx + (1/dz)*self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-                L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx - 2*(1/(dz*dz))*self.dt*self.Dsn*nh0*v*dx + (1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
+        dz = 0.1
+        Ns = int(1/dz)
+        # n0_array = [Function(self.V) for _ in range(s_steps)]
 
-                solve(a_n==L_n,N)
+        
+        s = 1
 
-                nh1.assign(nh0)
-                nh0.assign(N) 
-                temp3 = Function(self.V)
-                temp3.assign(N)
-                phi.assign(temp3 + phi)
-                n0_array[s+1] = temp3
+        P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
+                + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
+                p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
+                s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=s*dz,c=C,degree=2)
+        K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
+                d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=2)
+        vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                    - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                    V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                    epsilon=self.epsilon,c=C,s=s*dz,degree=2)
 
-                # print('s=%g: ' %((s+1)*dz))
-                # temp3 = interpolate(temp3,self.V)
-                # print(temp3(0.5))
-                # plot(temp3)
-                # plt.ylim([0,0.01])
-                # plt.show()
+        a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+        a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=s*dz,degree=2)
+        a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
+        a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
+        #a = interpolate(a,V)
+        b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
+        b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=s*dz,degree=2)
+        b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
+        if i < len(self.times) and self.t*self.dt == self.times[i]: 
+                print('dose')
+                d=self.doses[i]
+                print(d)
+                i+=1
 
-                s+=1
+        S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
+        F = Expression("P - K", degree=2, P=P, K=K)
+
+        # n = [TrialFunction(self.V) for _ in range(Ns-1)]
+        n = TrialFunction(self.V)
+        
+        matrix_list = []
+        # A = BlockMatrix(Ns-1,Ns-1)
+
+        a00 = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
+        vs.s = (s+1)*dz
+        a01 = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
+
+        A0 = assemble(a00)
+        A0r = assemble(a01)
+        row1 = [0] * (Ns-1)
+        row1[0] = A0
+        row1[1] = A0r
+        
+    
+        matrix_list.append(row1)
+
+        for s in range(1,Ns-2):
+            P.s = s*dz
+            K.s = s*dz
+            vs.s = (s+1)*dz
+            a = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + 2*self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
+            ar = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
+            vs.s = (s-1)*dz
+            al = -self.Dsn/(2*dz*dz)*n*v*dx - 1/(2*dz)*vs*n*v*dx
+            Ac = assemble(a)
+            Ar = assemble(ar)
+            Al = assemble(al)
+
+            new_row = [0] * (Ns-1)
+            new_row[s] = Ac
+            new_row[s-1] = Al
+            new_row[s+1] = Ar
+            matrix_list.append(new_row)
+
+        s = Ns-2
+        aNN = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
+        vs.s = (s-1)*dz
+        aNl = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
+
+        AN = assemble(aNN)
+        ANl = assemble(aNl)
+        lastrow = [0] * (Ns-1)
+        lastrow[-1] = AN
+        lastrow[-2] = ANl
+        matrix_list.append(lastrow)
+        
+
+        A = block_mat(matrix_list)
+       
+        b_list = []
+        for s in range(1,Ns):
+            self.n0.s = s*dz
+            L = (1/self.dt)*self.n0*v*dx
+            b_curr = assemble(L)
+            b_list.append(b_curr)
+            print(b_curr.size())
+        b = block_vec(b_list)
+        # print(b)
+        
+        # y = Vector()
+        # # A.init_vector(y, 0)
+        # yy = BlockVector(Ns-1)
+        # for s in range(1,Ns):
+        #     yy[s-1] = y
+
+        # A = A.block_collapse()
+        AA = ii_convert(A)
+        AA = AA.mat()
+        A_CSR=sparse.csr_matrix(AA.getValuesCSR()[::-1],shape=AA.size)
+        # print(A_CSR.shape)
+        B = ii_convert(b)
+        B_CSR=sparse.csr_matrix(B)
+        B_CSR=B_CSR.transpose()
             
-            # last step
-            
-            P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
-                        + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
-                        p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                        s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
-            K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
-                    d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
-            vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
-            vs0 = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=s*dz,degree=2)
-            # vs = interpolate(vs,self.V)
+        print('a',AA.size)
+        print(A_CSR.toarray().shape)
+        print(B_CSR.toarray().shape)
 
-            a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            a2 = Expression('alpha_min + delta_alpha*tanh(k*s)',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,s=(s+1)*dz,degree=2)
-            a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
-            a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
-            #a = interpolate(a,V)
-            b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            b2 = Expression('beta_min + delta_beta*tanh(k*s)',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,s=(s+1)*dz,degree=2)
-            b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)            
-            S_rt = Expression('-a*d - b*d*d', a=a, b=b, d=d,degree=2)
-            F = Expression("P - K", degree=2, P=P, K=K)
-            
-            
-            a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx  \
-                    + 2*(1/(dz*dz))*self.dt*self.Dsn*n*v*dx + self.dt*vs*n*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx
-            L_n = n0_array[s+1]*v*dx + (1/dz)*self.dt*vs0*nh0*v*dx + 2*(1/(dz*dz))*self.dt*self.Dsn*nh1*v*dx
-            solve(a_n==L_n,N)
+        
+        _,s,_=svds(A_CSR,k=50)
+        cond=max(s)/min(s)
+        # print(cond)
 
-            nh1.assign(nh0)
-            nh0.assign(N) 
-            temp3 = Function(self.V)
-            temp3.assign(N)
-            phi.assign(temp3 + phi)
-            n0_array[s+1] = temp3
-            phi.assign(phi/s_steps)
+        x,exit=minres(A_CSR,B_CSR.toarray())
+        # print(x)
+        # print(x.shape)
 
-            # print('s=%g: ' %((s+1)*dz))
-            # temp3 = interpolate(temp3,self.V)
-            # plot(temp3)
-            # plt.ylim([0,0.01])
-            # plt.show()
+        print(x[:41])
+        coord_V = self.mesh.coordinates()
+        print(coord_V)
+        scatter_plot=plt.plot(coord_V,x[84:105])
+        plt.ylim([0,0.1])
 
-            # phi = interpolate(phi,self.V)
-            # plot(phi)
-            # # plt.ylim([0,0.01])
-            # plt.show()
+        # coord_V=meshV.coordinates()
+        # fig = plt.figure(figsize=(8, 6))
+        # ax = fig.add_subplot(111, projection='3d')
+        # scatter_plot=ax.scatter(coord_V[:,0],coord_V[:,1],coord_V[:,2],c=x[:9261])
+        # cbar = fig.colorbar(scatter_plot, ax=ax, pad=0.1)
 
+        # coord_V=meshV.coordinates()
+        # fig = plt.figure(figsize=(8, 6))
+        # ax = fig.add_subplot(111, projection='3d')
+        # scatter_plot=ax.scatter(coord_V[:,0],coord_V[:,1],coord_V[:,2],c=x[9261:])
+        # cbar = fig.colorbar(scatter_plot, ax=ax, pad=0.1)
 
-            d=0
-            t+=1
+            # d=0
+            # t+=1
         
         np.save(self.path_sol + "/" + "mass.npy", mass)
 
