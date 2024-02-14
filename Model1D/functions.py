@@ -203,7 +203,7 @@ class Solver1D:
                 print('iter=%d: norm=%g' % (iter, eps))
                 # print('cmin:', C.vector().min())
                 self.c_k.assign(C) 
-
+            
             if t % self.save_interval == 0:
                 n_vect.append(self.n0.vector().get_local().copy())
                 c_vect.append(C.vector().get_local().copy())
