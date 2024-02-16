@@ -162,9 +162,10 @@ class Solver3D:
         tol = 1.0E-3    
         maxiter = 30  
 
+        nfile = XDMFFile(self.path_sol + "/" + "n.xdmf")
+        cfile = XDMFFile(self.path_sol + "/" + "c.xdmf")
         nfile.parameters['rewrite_function_mesh'] = False
         cfile.parameters['rewrite_function_mesh'] = False
-
 
         phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
         phi_h = interpolate(phi, self.V)
@@ -182,6 +183,13 @@ class Solver3D:
             # plot(n0_array[s])
             # plt.show()
 
+        x_vect = []
+        mesh2D = UnitSquareMesh(20,Ns)
+        V2D = FunctionSpace(mesh2D,"P",1)
+        n0_2D = Function(V2D)
+
+        nmesh = 21
+
         while(t < n_steps):
             print('time=%g: ' %(t*self.dt))
 
@@ -198,16 +206,16 @@ class Solver3D:
                 print('iter=%d: norm=%g' % (iter, eps))
                 self.c_k.assign(C) 
 
-            ch = interpolate(C,self.V)
-            plot(ch)
-            plt.title('oxygen')
-            plt.show()
+            # ch = interpolate(C,self.V)
+            # plot(ch)
+            # plt.title('oxygen')
+            # plt.show()
 
             # if t % self.save_interval == 0:
-            #     c_vect.append(C.vector().get_local().copy())
-            #     cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
+            # c_vect.append(C.vector().get_local().copy())
+            cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
             
-            mass.append(assemble(phi_h*dx))
+            
 
             # n0_array = [Function(self.V) for _ in range(s_steps)]
 
@@ -216,7 +224,7 @@ class Solver3D:
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                     p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=s*dz,c=C,degree=2)
+                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi_h,s=s*dz,c=C,degree=2)
             K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                     d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=2)
             vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
@@ -267,7 +275,7 @@ class Solver3D:
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                     p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
+                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi_h,s=(s+1)*dz,c=C,degree=2)
                 K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                     d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
                 vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
@@ -297,7 +305,7 @@ class Solver3D:
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                     p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
-                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=(s+1)*dz,c=C,degree=2)
+                    s_csc=self.s_csc,s_dc=self.s_dc,phi=phi_h,s=(s+1)*dz,c=C,degree=2)
             K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                     d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=(s+1)*dz,degree=2)
             F = Expression("P - K", degree=2, P=P, K=K)
@@ -327,12 +335,6 @@ class Solver3D:
                 # print(b_curr.size())
             b = block_vec(b_list)
             # print(b)
-            
-            # y = Vector()
-            # # A.init_vector(y, 0)
-            # yy = BlockVector(Ns-1)
-            # for s in range(1,Ns):
-            #     yy[s-1] = y
 
             # A = A.block_collapse()
             AA = ii_convert(A)
@@ -348,55 +350,88 @@ class Solver3D:
             # print(B_CSR.toarray().shape)
 
             
-            _,s,_=svds(A_CSR,k=50)
-            cond=max(s)/min(s)
+            # _,s,_=svds(A_CSR,k=50)
+            # cond=max(s)/min(s)
             # print(cond)
 
-            x,exit=minres(A_CSR,B_CSR.toarray())
-            # print(x)
-            # print(x.shape)
-
-            # print(x[:41])
-            coord_V = self.mesh.coordinates()
-            # print(coord_V)
-            # for i in range(Ns-1):
-            #     print('i = ', i)
-            #     plt.plot(coord_V,x[21*i:21*(i+1)])
-            #     plt.ylim([0,0.01])
-            #     plt.show()
+            x,exit=gmres(A_CSR,B_CSR.toarray())
 
             sum = 0
-            for i in range(Ns-2):
-                sum += dz*(x[21*(i+1):21*(i+2)] + x[21*i:21*(i+1)])/2
+            # for i in range(Ns-2):
+            #     sum += dz*(x[nmesh*(i+1):nmesh*(i+2)] + x[nmesh*i:nmesh*(i+1)])/2
+            # phi = Function(self.V)
+            # phi.vector()[:] = sum
+            # phi_h = interpolate(phi,self.V)
+            # plot(phi_h)
+            # plt.show()
+        
+            for s in range(Ns-1):
+                n0_array[s].vector()[:] = x[nmesh*s:nmesh*(s+1)]
+
+            # xnew = np.pad(x, (21, 21)) 
+            xnew = np.concatenate([x[0:nmesh],x,x[-nmesh:]])
+
+            for i in range(Ns):
+                sum += dz*(xnew[nmesh*(i+1):nmesh*(i+2)] + xnew[nmesh*i:nmesh*(i+1)])/2
             phi = Function(self.V)
             phi.vector()[:] = sum
             phi_h = interpolate(phi,self.V)
-            plot(phi_h)
-            # plt.ylim([0,0.002])
-            plt.show()
-        
-            # phi_h = interpolate(phi,self.V)
+            # plot(phi_h)
+            # plt.show()
 
-            for s in range(Ns-1):
-                n0_array[s].vector()[:] = x[21*s:21*(s+1)]
-                
 
-            xnew = np.pad(x, (21, 21))  
-            mesh2D = UnitSquareMesh(20,Ns)
-            V2D = FunctionSpace(mesh2D,"P",1)
-            n0_2D = Function(V2D)
-            xnew = [xnew[i] for i in dof_to_vertex_map(V2D)]
-            # print(mesh2D.coordinates())
-            # print(n0_2D.vector().size(),
+            for s in range(0,Ns+1): 
+                xnew[nmesh*s:nmesh*(s+1)] = np.flip(xnew[nmesh*s:nmesh*(s+1)])
+            xnew = np.array([xnew[i] for i in dof_to_vertex_map(V2D)])
+
             n0_2D.vector()[:] = xnew
-            plot(n0_2D,vmin=0)
-            plt.colorbar(plot(n0_2D))
-            plt.show()
+            n0_2D = interpolate(n0_2D,V2D)
+            # plot(n0_2D,vmin=0)
+            # plt.colorbar(plot(n0_2D))
+            # plt.show()
+            # plt.scatter(mesh2D.coordinates()[:,0],mesh2D.coordinates()[:,1],c=xnew)
+            # plt.colorbar()
+            # plt.show()
+
+            subdomains_markers = MeshFunction('size_t', mesh2D,2)
+            class Omega_CSC(SubDomain):
+                def inside(self, x, on_boundary):
+                    return x[1] <= 0.3 + 1E-14
+
+            class Omega_DC(SubDomain):
+                def inside(self, x, on_boundary): 
+                    return x[1] > 0.3 - 1E-14 and x[1] <= 0.8 + 1E-14
+                
+            class Omega_TDC(SubDomain):
+                def inside(self, x, on_boundary): 
+                    return x[1] > 0.8 - 1E-14
+                
+            subdomain_CSC = Omega_CSC()
+            subdomain_DC = Omega_DC()
+            subdomain_TDC = Omega_TDC()
+            subdomain_CSC.mark(subdomains_markers, 0)
+            subdomain_DC.mark(subdomains_markers, 1)
+            subdomain_TDC.mark(subdomains_markers, 2)
+            self.dx = Measure("dx",domain=mesh2D, subdomain_data=subdomains_markers)
+            mass.append(assemble(phi_h*dx))
+            csc_mass.append(assemble(n0_2D*self.dx(0))/mass[-1])
+            dc_mass.append(assemble(n0_2D*self.dx(1))/mass[-1])
+            tdc_mass.append(assemble(n0_2D*self.dx(2))/mass[-1])
+
+            nfile.write_checkpoint(n0_2D,"n",t,XDMFFile.Encoding.HDF5, True)
+
+            x_vect.append(x)
+
             
+          
 
             d=0
             t+=1
-        
+        # np.save(self.path_sol + "/" + "n.npy", x_vect)
         np.save(self.path_sol + "/" + "mass.npy", mass)
+        np.save(self.path_sol + "/" + "csc_mass.npy", csc_mass)
+        np.save(self.path_sol + "/" + "dc_mass.npy", dc_mass)
+        np.save(self.path_sol + "/" + "tdc_mass.npy", tdc_mass)
 
-        return mass
+        return mass, x_vect
+    
