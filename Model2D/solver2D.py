@@ -69,13 +69,13 @@ class Solver2D:
 
     def boundaries(self):
     
-        boundary_markers = MeshFunction('size_t', self.mesh,1)
-        subdomains_markers = MeshFunction('size_t', self.mesh,2)
+        boundary_markers = MeshFunction('size_t', self.mesh,2)
+        subdomains_markers = MeshFunction('size_t', self.mesh,3)
 
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], -1, 1E-14)
+                return on_boundary and near(x[0], 0, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -99,7 +99,7 @@ class Solver2D:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], -1, 1E-14)
+                return on_boundary and near(x[1], 0, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -118,7 +118,7 @@ class Solver2D:
                 return on_boundary and near(x[2], 0, 1E-14)
 
         self.bs0 = BoundaryS0()
-        self.bs0.mark(boundary_markers, 3)
+        self.bs0.mark(boundary_markers, 5)
 
         class Omega_CSC(SubDomain):
             def inside(self, x, on_boundary):
@@ -162,16 +162,16 @@ class Solver2D:
         c = TrialFunction(self.V)
         w = TestFunction(self.V)
 
-        # f = Constant(0.0)
+        f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('1e6*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.01,degree=2)
+        # Vc = Expression('1e6*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.01,degree=2)
         
-        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
-        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
-        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
-        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
-        bcs_c = [bc_x1,bc_x0,bc_y0,bc_y1]
+        bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
+        # bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        # bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        # bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1]
 
         mass = []
         n_vect = []
@@ -189,6 +189,7 @@ class Solver2D:
 
         nfile.parameters['rewrite_function_mesh'] = False
         cfile.parameters['rewrite_function_mesh'] = False
+        phifile.parameters['rewrite_function_mesh'] = False
 
         while(t < n_steps):
             print('time=%g: ' %(t*self.dt))
@@ -197,7 +198,7 @@ class Solver2D:
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi_h*c*w*dx
-            L_c = Vc*w*dx
+            L_c = f*w*dx
             
             # fixed point -> solve c
             iter = 0  
@@ -218,6 +219,10 @@ class Solver2D:
                 phifile.write_checkpoint(phi_h,"phi",t,XDMFFile.Encoding.HDF5, True)
 
             mass.append(assemble(phi_h*dx))
+            # print(assemble(phi_h*dx))
+            # print(assemble(self.n0*self.dx(0)))
+            # print(assemble(self.n0*self.dx(1)))
+            # print(assemble(self.n0*self.dx(2)))
             csc_mass.append(assemble(self.n0*self.dx(0))/mass[-1])
             dc_mass.append(assemble(self.n0*self.dx(1))/mass[-1])
             tdc_mass.append(assemble(self.n0*self.dx(2))/mass[-1])
@@ -236,12 +241,12 @@ class Solver2D:
             vs = interpolate(vs,self.V)
 
             a1 = Expression('(c > c_R) ? 1 : 1/OER',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            a2 = Expression('alpha_min + delta_alpha*tanh(k*x[1])',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,degree=2)
+            a2 = Expression('alpha_min + delta_alpha*tanh(k*x[2])',alpha_min=self.alpha_min,delta_alpha=self.delta_alpha,k=self.k,degree=2)
             a3 = Expression('1+P/Pmax', P=P,Pmax=self.p_dc,degree=2)
             a = Expression('a1*a2*a3',a1=a1,a2=a2,a3=a3,degree=2)
             #a = interpolate(a,V)
             b1 = Expression('(c > c_R) ? 1 : 1/(OER*OER)',c_R=self.c_R,OER=self.OER,c=C,degree=2)
-            b2 = Expression('beta_min + delta_beta*tanh(k*x[1])',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,degree=2)
+            b2 = Expression('beta_min + delta_beta*tanh(k*x[2])',beta_min=self.beta_min,delta_beta=self.delta_beta,k=self.k,degree=2)
             b = Expression('b1*b2*b3',b1=b1,b2=b2,b3=a3,degree=2)
             #b = interpolate(b,V)
 
@@ -256,7 +261,7 @@ class Solver2D:
 
             a_n = n*v*dx + self.dt*self.Dxn*inner(grad(n)[0],grad(v)[0])*dx + self.dt*self.Dxn*inner(grad(n)[1],grad(v)[1])*dx \
                   + self.dt*self.Dsn*inner(grad(n)[2],grad(v)[2])*dx + self.dt*grad(vs*n)[2]*v*dx - self.dt*n*v*F*dx - n*v*S_rt*dx \
-                  + self.dt*n*v*vs*self.ds(3) - self.dt*n*v*vs*self.ds(4) 
+                  + self.dt*n*v*vs*self.ds(5) - self.dt*n*v*vs*self.ds(4) 
             L_n = self.n0*v*dx
 
             solve(a_n==L_n,N)
