@@ -181,10 +181,10 @@ class Solver1D:
 
             phi_h = interpolate(phi, self.V)
             
-            mesh1D = IntervalMesh(20,0,1)
-            V1D = FunctionSpace(mesh1D,'CG',1)
-            phi1D = interpolate(phi_h,V1D)
-            plot(phi1D)
+            # mesh1D = IntervalMesh(20,0,1)
+            # V1D = FunctionSpace(mesh1D,'CG',1)
+            # phi1D = interpolate(phi_h,V1D)
+            # plot(phi1D)
             # plt.ylim([0,0.01])
             plt.show()
             a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*c/(self.c_k + self.K_m)*phi_h*w*dx
