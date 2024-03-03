@@ -44,7 +44,7 @@ class MatrixSolver:
         self.path_sol = path_sol
         self.Dxc = 4.32*1e3
         self.gamma = 4*self.Dxc
-        self.K_m = 0.005
+        self.K_m = 1e-2
         self.Dxn = 2.4*1e-3
         self.Dsn = 1.2*1e-4
         self.p_csc = 0.12
@@ -335,28 +335,7 @@ class MatrixSolver:
             if t % self.save_interval == 0:
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
                 phi_file.write_checkpoint(phi,"phi",t,XDMFFile.Encoding.HDF5, True)
-                # n3D = Function(V3D)
-                # n_vect =  np.array([n_vect[i] for i in dof_to_vertex_map(V3D)])
-                # n3D.vector()[:] = n_vect
-                # # fig = plt.figure()
-                # # ax = fig.add_subplot(projection='3d')
-                # # ax.scatter(mesh3D.coordinates()[:,0],mesh3D.coordinates()[:,1],mesh3D.coordinates()[:,2],c=n3D.compute_vertex_values())
-                # # plt.show()
-                # file3D.write_checkpoint(n3D,"n",t,XDMFFile.Encoding.HDF5, True)
-
-                # m = pv.read('cubo.vtk')        
-                # # xyz = m.points
-
-                # temp_path = os.path.join(self.path_sol, 'solution')
-                # if not os.path.exists(temp_path):
-                #     os.mkdir(temp_path)
-
-                # sol_points = np.array(n_vect)
-
-                # # riempire sol points
-                # m1 = copy.deepcopy(m)
-                # m1['solution'] = sol_points
-                # m1.save(os.path.join(temp_path, f'sol_{t}.vtk'))
+                self.plot_solution3D(x, t, Ns)
               
             # compute tumor composition
             csc = 0
@@ -390,4 +369,30 @@ class MatrixSolver:
         np.save(self.path_sol + "/" + "dc_mass.npy", dc_mass)
         np.save(self.path_sol + "/" + "tdc_mass.npy", tdc_mass)
     
+        return x
+    
+    def plot_solution3D(self, sol, t, Ns):
+        vec = []
+        f2D = Function(self.V)
+        for i in range(Ns+1):
+            f2D.vector()[:] = sol[i]
+            vec.extend(f2D.compute_vertex_values())
         
+        mesh3D = UnitCubeMesh(20,20,Ns)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(projection='3d')
+        # sol = ax.scatter(mesh3D.coordinates()[:,0],mesh3D.coordinates()[:,1],mesh3D.coordinates()[:,2],c=vec)
+        # plt.colorbar(sol)
+        # plt.show()
+
+        m = pv.read('cubo.vtk')        
+        temp_path = os.path.join(self.path_sol, 'solution')
+        if not os.path.exists(temp_path):
+            os.mkdir(temp_path)
+
+        sol_points = np.array(vec)
+
+        # riempire sol points
+        m1 = copy.deepcopy(m)
+        m1['solution'] = sol_points
+        m1.save(os.path.join(temp_path, f'sol_{t}.vtk'))

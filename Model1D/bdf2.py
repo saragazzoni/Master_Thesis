@@ -166,8 +166,8 @@ class Solver1D:
         # FIRST STEP
         phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
         phi_h = interpolate(phi, self.V)
-        a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*(0.5*c/(self.c_k + self.K_m))*phi_h*w*dx
-        L_c = f*w*dx - self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
+        a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*c/(self.c_k + self.K_m)*phi_h*w*dx
+        L_c = f*w*dx #- self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
         eps= 1.0
         tol = 1.0E-3
         iter = 0        
@@ -222,15 +222,15 @@ class Solver1D:
         L_n = self.n0*v*dx
         solve(a_n==L_n,N)
         n1.assign(N)
-
+        t += 1
         while(t<n_steps):
             print('time=%g: ' %(t*self.dt))
 
             # update phi
-            phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
+            phi = VerticalAverage(n1, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
-            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*(0.5*c/(self.c_k + self.K_m))*phi_h*w*dx
-            L_c = f*w*dx - self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
+            a_c = self.Dxc * inner(grad(c)[0],grad(w)[0])*dx + self.gamma*(c/(self.c_k + self.K_m))*phi_h*w*dx
+            L_c = f*w*dx #- self.gamma*0.5*phi_h*w*dx#- self.gamma*(0.5 + 0.5*tanh((self.c_k-self.c_N)/0.05))*phi_h*w*dx
             
             # fixed point -> solve c
             eps= 1.0
@@ -255,9 +255,9 @@ class Solver1D:
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
 
             mass.append(assemble(phi_h*dx))
-            csc_mass.append(assemble(self.n0*self.dx(0))/mass[-1])
-            dc_mass.append(assemble(self.n0*self.dx(1))/mass[-1])
-            tdc_mass.append(assemble(self.n0*self.dx(2))/mass[-1])
+            csc_mass.append(assemble(n1*self.dx(0))/mass[-1])
+            dc_mass.append(assemble(n1*self.dx(1))/mass[-1])
+            tdc_mass.append(assemble(n1*self.dx(2))/mass[-1])
         
             # solve n
             P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((x[1]-s_csc)/g_csc,2)) \

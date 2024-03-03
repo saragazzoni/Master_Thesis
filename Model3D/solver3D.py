@@ -349,10 +349,10 @@ class Solver3D:
 
             n0_2D.vector()[:] = xnew
             n0_2D = interpolate(n0_2D,V2D)
-            if t % self.save_interval == 0:
-                plot(n0_2D)
-                plt.colorbar(plot(n0_2D))
-                plt.show()
+            # if t % self.save_interval == 0:
+            #     plot(n0_2D)
+            #     plt.colorbar(plot(n0_2D))
+            #     plt.show()
             # plt.scatter(mesh2D.coordinates()[:,0],mesh2D.coordinates()[:,1],c=xnew)
             # plt.colorbar()
             # plt.show()
