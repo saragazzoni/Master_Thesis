@@ -44,7 +44,7 @@ class MatrixSolver:
         self.path_sol = path_sol
         self.Dxc = 4.32*1e3
         self.gamma = 4*self.Dxc
-        self.K_m = 1e-2
+        self.K_m = 0.005
         self.Dxn = 2.4*1e-3
         self.Dsn = 1.2*1e-4
         self.p_csc = 0.12
@@ -86,7 +86,7 @@ class MatrixSolver:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], 0, 1E-14)
+                return on_boundary and near(x[0], -1, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -110,7 +110,7 @@ class MatrixSolver:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], 0, 1E-14)
+                return on_boundary and near(x[1], -1, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -144,13 +144,13 @@ class MatrixSolver:
         f = Constant(0.0)
         # L_c = f*w*dx 
 
-        # Vc = Expression('1e8*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 1e-3,degree=2)
+        Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v =0.1,degree=2)
         
-        bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
-        # bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
-        # bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
-        # bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
-        bcs_c = [bc_x1]
+        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
+        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1, bc_x0, bc_y0, bc_y1]
 
         mass = []
         n_vect = []
@@ -190,14 +190,14 @@ class MatrixSolver:
             # plt.show()
 
         # nmesh = V.dim
-        mesh3D = UnitCubeMesh(20,20,Ns)
-        V3D = FunctionSpace(mesh3D,"P",1)
+        # mesh3D = UnitCubeMesh(20,20,Ns)
+        # V3D = FunctionSpace(mesh3D,"P",1)
 
         while(t < n_steps):
             print('time=%g: ' %(t*self.dt))
 
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx
-            L_c = f*w*dx
+            L_c = Vc*w*dx
             
             iter = 0  
             eps= 1.0
@@ -378,14 +378,14 @@ class MatrixSolver:
             f2D.vector()[:] = sol[i]
             vec.extend(f2D.compute_vertex_values())
         
-        mesh3D = UnitCubeMesh(20,20,Ns)
+        # mesh3D = UnitCubeMesh(20,20,Ns)
         # fig = plt.figure()
         # ax = fig.add_subplot(projection='3d')
         # sol = ax.scatter(mesh3D.coordinates()[:,0],mesh3D.coordinates()[:,1],mesh3D.coordinates()[:,2],c=vec)
         # plt.colorbar(sol)
         # plt.show()
 
-        m = pv.read('cubo.vtk')        
+        m = pv.read('boxmesh.vtk')        
         temp_path = os.path.join(self.path_sol, 'solution')
         if not os.path.exists(temp_path):
             os.mkdir(temp_path)
