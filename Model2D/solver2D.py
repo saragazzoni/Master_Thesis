@@ -75,7 +75,7 @@ class Solver2D:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], 0, 1E-14)
+                return on_boundary and near(x[0], -1, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -99,7 +99,7 @@ class Solver2D:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], 0, 1E-14)
+                return on_boundary and near(x[1], -1, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -165,15 +165,15 @@ class Solver2D:
         f = Constant(0.0)
         # L_c = f*w*dx 
 
-        # Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.1,degree=2)
+        Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.1,degree=2)
         
-        # bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
-        # bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
-        # bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
-        # bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
-        # bcs_c = [bc_x1, bc_x0, bc_y0, bc_y1]
-        bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
-        bcs_c = [bc_x1]
+        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
+        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1, bc_x0, bc_y0, bc_y1]
+        # bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
+        # bcs_c = [bc_x1]
 
         mass = []
         n_vect = []
@@ -200,7 +200,7 @@ class Solver2D:
             phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
             phi_h = interpolate(phi, self.V)
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi_h*c*w*dx
-            L_c = f*w*dx
+            L_c = Vc*w*dx
             
             # fixed point -> solve c
             iter = 0  

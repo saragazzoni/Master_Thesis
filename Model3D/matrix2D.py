@@ -86,7 +86,7 @@ class MatrixSolver:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], -1, 1E-14)
+                return on_boundary and near(x[0], 0, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -110,7 +110,7 @@ class MatrixSolver:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], -1, 1E-14)
+                return on_boundary and near(x[1], 0, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -144,13 +144,13 @@ class MatrixSolver:
         f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v =0.1,degree=2)
+        # Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v =0.1,degree=2)
         
-        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
-        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
-        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
-        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
-        bcs_c = [bc_x1, bc_x0, bc_y0, bc_y1]
+        bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
+        # bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        # bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        # bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1]
 
         mass = []
         n_vect = []
@@ -175,29 +175,46 @@ class MatrixSolver:
         # file3D = XDMFFile(f"{self.path_sol}/n3D.xdmf")
         # file3D.parameters['rewrite_function_mesh'] = False
 
-        phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
-        phi = interpolate(phi, self.V)
+        # phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
+        # phi = interpolate(phi, self.V)
        
 
         n0_array = [Function(self.V) for _ in range(Ns+1)]
+        sum = np.array([0.0]*self.V.dim())
         for s in range(Ns+1):
             self.n0.s = s*dz
             temp = Function(self.V)
             temp.assign(self.n0)
+            # temp = interpolate(temp,self.V)
             n0_array[s].vector()[:] = temp.vector()[:]
             # n0_array[s] = interpolate(n0_array[s],self.V)
             # plot(n0_array[s])
             # plt.show()
-
+            n0_array[s] = interpolate(n0_array[s],self.V)
+            # fig = plt.figure()
+            # ax = fig.add_subplot(projection='3d')
+            # sol = ax.scatter(self.mesh.coordinates()[:,0],self.mesh.coordinates()[:,1],self.mesh.coordinates()[:,2],c=n0_array[s].vector()[:])
+            # plt.colorbar(sol)
+            # plt.show()
+            sum += n0_array[s].vector()[:]
+        sum = sum/Ns
+        phi.vector()[:] = sum
+        phi = interpolate(phi,self.V)
+        phi_file.write_checkpoint(phi,"phi",0,XDMFFile.Encoding.HDF5, True)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(projection='3d')
+        # sol = ax.scatter(self.mesh.coordinates()[:,0],self.mesh.coordinates()[:,1],self.mesh.coordinates()[:,2],c=phi.vector()[:])
+        # plt.colorbar(sol)
+        # plt.show()
         # nmesh = V.dim
         # mesh3D = UnitCubeMesh(20,20,Ns)
         # V3D = FunctionSpace(mesh3D,"P",1)
-
+        
         while(t < n_steps):
             print('time=%g: ' %(t*self.dt))
 
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx
-            L_c = Vc*w*dx
+            L_c = f*w*dx
             
             iter = 0  
             eps= 1.0
@@ -208,7 +225,7 @@ class MatrixSolver:
                 eps = np.linalg.norm(difference) / np.linalg.norm(self.c_k.vector())
                 print('iter=%d: norm=%g' % (iter, eps))
                 self.c_k.assign(C) 
-
+        
             # ch = interpolate(C,self.V)
             # plot(ch)
             # plt.title('oxygen')
@@ -335,7 +352,7 @@ class MatrixSolver:
             if t % self.save_interval == 0:
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
                 phi_file.write_checkpoint(phi,"phi",t,XDMFFile.Encoding.HDF5, True)
-                self.plot_solution3D(x, t, Ns)
+                # self.plot_solution3D(x, t, Ns)
               
             # compute tumor composition
             csc = 0

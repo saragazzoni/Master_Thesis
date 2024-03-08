@@ -166,7 +166,7 @@ class Solver2D:
         # f = Constant(0.0)
         # L_c = f*w*dx 
 
-        Vc = Expression('1.5*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.1,degree=2)
+        Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v = 0.1,degree=2)
         
         bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
         bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
