@@ -208,10 +208,13 @@ class Solver3D:
 
             if t % self.save_interval == 0:
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
+                ch = interpolate(C,self.V)
+                plot(ch)
+                plt.show()
 
             matrix_list = []
             # first two rows
-            for s in range(2):
+            for s in range(1):
 
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                         + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
@@ -223,11 +226,11 @@ class Solver3D:
                 vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                             - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                             V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
+                            epsilon=self.epsilon,c=C,s=(s+0.5)*dz,degree=2)
                 
 
-                a00 = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx 
-                a01 = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
+                a00 = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx + 0.5/dz*vs*n*v*dx
+                a01 = -self.Dsn/(dz*dz)*n*v*dx + 0.5/(dz)*vs*n*v*dx
                 A0 = assemble(a00)
                 A0r = assemble(a01)
                 row1 = [0] * (Ns+1)
@@ -236,25 +239,26 @@ class Solver3D:
                 matrix_list.append(row1)
 
             # middle rows
-            for s in range(2,Ns-1):
+            for s in range(1,Ns):
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                     p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
                     s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=s*dz,c=C,degree=2)
                 K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                     d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=2)
-                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                vs_plus = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                         - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                         V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=2)
+                        epsilon=self.epsilon,c=C,s=(s+0.5)*dz,degree=2)
+                vs_minus = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                        epsilon=self.epsilon,c=C,s=(s-0.5)*dz,degree=2)
                 F = Expression("P - K", degree=2, P=P, K=K)
-                a = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + 2*self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
-                ar = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
-                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=(s-1)*dz,degree=2)
-                al = -self.Dsn/(2*dz*dz)*n*v*dx - 1/(2*dz)*vs*n*v*dx
+                a = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + 2*self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx + 0.5/dz*vs_plus*n*v*dx - 0.5/dz*vs_minus*n*v*dx
+                ar = -self.Dsn/(dz*dz)*n*v*dx + 0.5/(dz)*vs_plus*n*v*dx
+                
+                al = -self.Dsn/(dz*dz)*n*v*dx - 0.5/(dz)*vs_minus*n*v*dx
                 Ac = assemble(a)
                 Ar = assemble(ar)
                 Al = assemble(al)
@@ -265,7 +269,7 @@ class Solver3D:
                 new_row[s+1] = Ar
                 matrix_list.append(new_row)
 
-            s = Ns-1
+            s = Ns
             # last two rows
             while s <= Ns:
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
@@ -276,12 +280,12 @@ class Solver3D:
                         d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=2)
                 F = Expression("P - K", degree=2, P=P, K=K)
 
-                aNN = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
+                aNN = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx -0.5/dz*vs*n*v*dx
                 vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                             - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                             V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=(s-1)*dz,degree=2)
-                aNl = -self.Dsn/(2*dz*dz)*n*v*dx - 1/(2*dz)*vs*n*v*dx
+                            epsilon=self.epsilon,c=C,s=(s-0.5)*dz,degree=2)
+                aNl = -self.Dsn/(dz*dz)*n*v*dx - 0.5/(dz)*vs*n*v*dx
 
                 AN = assemble(aNN)
                 ANl = assemble(aNl)
@@ -349,10 +353,10 @@ class Solver3D:
 
             n0_2D.vector()[:] = xnew
             n0_2D = interpolate(n0_2D,V2D)
-            # if t % self.save_interval == 0:
-            #     plot(n0_2D)
-            #     plt.colorbar(plot(n0_2D))
-            #     plt.show()
+            if t % self.save_interval == 0:
+                plot(n0_2D)
+                plt.colorbar(plot(n0_2D))
+                plt.show()
             # plt.scatter(mesh2D.coordinates()[:,0],mesh2D.coordinates()[:,1],c=xnew)
             # plt.colorbar()
             # plt.show()

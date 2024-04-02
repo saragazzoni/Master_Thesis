@@ -136,7 +136,6 @@ class Solver3D:
         nh1 = Function(self.V)
 
         
-
         f = Constant(0.0)
         # L_c = f*w*dx 
 
@@ -183,7 +182,6 @@ class Solver3D:
         mesh2D = UnitSquareMesh(nmesh-1,Ns)
         V2D = FunctionSpace(mesh2D,"P",1)
         n0_2D = Function(V2D)
-
 
         # first step 
         a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx

@@ -67,7 +67,7 @@ class Solver2D:
         for key, value in dict_params.items():
             self.key = value
 
-    def boundaries(self):
+    def boundaries(self,xleft):
     
         boundary_markers = MeshFunction('size_t', self.mesh,2)
         subdomains_markers = MeshFunction('size_t', self.mesh,3)

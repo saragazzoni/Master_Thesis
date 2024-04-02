@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<Xdmf Version="3.0">
+  <Domain>
+    <Grid GridType="Collection" CollectionType="Temporal" Name="c">
+      <Grid Name="c_0" GridType="Uniform">
+        <Topology NumberOfElements="24000" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="24000 4" NumberType="UInt" Format="HDF">c.h5:c/c_0/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="4851 3" Format="HDF">c.h5:c/c_0/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="0.000000" />
+        <Attribute ItemType="FiniteElementFunction" ElementFamily="CG" ElementDegree="2" ElementCell="tetrahedron" Name="c" Center="Other" AttributeType="Scalar">
+          <DataItem Dimensions="240000 1" NumberType="UInt" Format="HDF">c.h5:c/c_0/cell_dofs</DataItem>
+          <DataItem Dimensions="35301 1" NumberType="Float" Format="HDF">c.h5:c/c_0/vector</DataItem>
+          <DataItem Dimensions="24001 1" NumberType="UInt" Format="HDF">c.h5:c/c_0/x_cell_dofs</DataItem>
+          <DataItem Dimensions="24000 1" NumberType="UInt" Format="HDF">c.h5:c/c_0/cells</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="c_1" GridType="Uniform">
+        <Topology NumberOfElements="24000" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="24000 4" NumberType="UInt" Format="HDF">c.h5:c/c_1/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="4851 3" Format="HDF">c.h5:c/c_1/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="2.000000" />
+        <Attribute ItemType="FiniteElementFunction" ElementFamily="CG" ElementDegree="2" ElementCell="tetrahedron" Name="c" Center="Other" AttributeType="Scalar">
+          <DataItem Dimensions="240000 1" NumberType="UInt" Format="HDF">c.h5:c/c_1/cell_dofs</DataItem>
+          <DataItem Dimensions="35301 1" NumberType="Float" Format="HDF">c.h5:c/c_1/vector</DataItem>
+          <DataItem Dimensions="24001 1" NumberType="UInt" Format="HDF">c.h5:c/c_1/x_cell_dofs</DataItem>
+          <DataItem Dimensions="24000 1" NumberType="UInt" Format="HDF">c.h5:c/c_1/cells</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="c_2" GridType="Uniform">
+        <Topology NumberOfElements="24000" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="24000 4" NumberType="UInt" Format="HDF">c.h5:c/c_2/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="4851 3" Format="HDF">c.h5:c/c_2/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="4.000000" />
+        <Attribute ItemType="FiniteElementFunction" ElementFamily="CG" ElementDegree="2" ElementCell="tetrahedron" Name="c" Center="Other" AttributeType="Scalar">
+          <DataItem Dimensions="240000 1" NumberType="UInt" Format="HDF">c.h5:c/c_2/cell_dofs</DataItem>
+          <DataItem Dimensions="35301 1" NumberType="Float" Format="HDF">c.h5:c/c_2/vector</DataItem>
+          <DataItem Dimensions="24001 1" NumberType="UInt" Format="HDF">c.h5:c/c_2/x_cell_dofs</DataItem>
+          <DataItem Dimensions="24000 1" NumberType="UInt" Format="HDF">c.h5:c/c_2/cells</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="c_3" GridType="Uniform">
+        <Topology NumberOfElements="24000" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="24000 4" NumberType="UInt" Format="HDF">c.h5:c/c_3/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="4851 3" Format="HDF">c.h5:c/c_3/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="6.000000" />
+        <Attribute ItemType="FiniteElementFunction" ElementFamily="CG" ElementDegree="2" ElementCell="tetrahedron" Name="c" Center="Other" AttributeType="Scalar">
+          <DataItem Dimensions="240000 1" NumberType="UInt" Format="HDF">c.h5:c/c_3/cell_dofs</DataItem>
+          <DataItem Dimensions="35301 1" NumberType="Float" Format="HDF">c.h5:c/c_3/vector</DataItem>
+          <DataItem Dimensions="24001 1" NumberType="UInt" Format="HDF">c.h5:c/c_3/x_cell_dofs</DataItem>
+          <DataItem Dimensions="24000 1" NumberType="UInt" Format="HDF">c.h5:c/c_3/cells</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="c_4" GridType="Uniform">
+        <Topology NumberOfElements="24000" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="24000 4" NumberType="UInt" Format="HDF">c.h5:c/c_4/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="4851 3" Format="HDF">c.h5:c/c_4/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="8.000000" />
+        <Attribute ItemType="FiniteElementFunction" ElementFamily="CG" ElementDegree="2" ElementCell="tetrahedron" Name="c" Center="Other" AttributeType="Scalar">
+          <DataItem Dimensions="240000 1" NumberType="UInt" Format="HDF">c.h5:c/c_4/cell_dofs</DataItem>
+          <DataItem Dimensions="35301 1" NumberType="Float" Format="HDF">c.h5:c/c_4/vector</DataItem>
+          <DataItem Dimensions="24001 1" NumberType="UInt" Format="HDF">c.h5:c/c_4/x_cell_dofs</DataItem>
+          <DataItem Dimensions="24000 1" NumberType="UInt" Format="HDF">c.h5:c/c_4/cells</DataItem>
+        </Attribute>
+      </Grid>
+    </Grid>
+  </Domain>
+</Xdmf>

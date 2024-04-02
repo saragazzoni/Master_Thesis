@@ -86,7 +86,7 @@ class MatrixSolver:
         class BoundaryX0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[0], 0, 1E-14)
+                return on_boundary and near(x[0], -1, 1E-14)
 
         self.bx0 = BoundaryX0()
         self.bx0.mark(boundary_markers, 3)
@@ -110,7 +110,7 @@ class MatrixSolver:
         class BoundaryY0(SubDomain):
             tol = 1E-14
             def inside(self, x, on_boundary):
-                return on_boundary and near(x[1], 0, 1E-14)
+                return on_boundary and near(x[1], -1, 1E-14)
 
         self.by0 = BoundaryY0()
         self.by0.mark(boundary_markers, 0)
@@ -124,8 +124,6 @@ class MatrixSolver:
 
         self.boundaries()
         n_steps = int(self.T/self.dt)
-
-        
     
         #V = FunctionSpace(mesh,"P",2)
         N = Function(self.V)
@@ -139,18 +137,16 @@ class MatrixSolver:
         nh0 = Function(self.V)
         nh1 = Function(self.V)
 
-        
-
         f = Constant(0.0)
         # L_c = f*w*dx 
 
-        # Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v =0.1,degree=2)
+        Vc = Expression('3*1e5*exp(-x[0]*x[0]/(sigma_v*sigma_v) - x[1]*x[1]/(sigma_v*sigma_v))',sigma_v =0.1,degree=2)
         
-        bc_x1 = DirichletBC(self.V,Constant(1.0),self.bx1)
-        # bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
-        # bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
-        # bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
-        bcs_c = [bc_x1]
+        bc_x1 = DirichletBC(self.V,Constant(0.0),self.bx1)
+        bc_x0 = DirichletBC(self.V,Constant(0.0),self.bx0)
+        bc_y0 = DirichletBC(self.V,Constant(0.0),self.by0)
+        bc_y1 = DirichletBC(self.V,Constant(0.0),self.by1)
+        bcs_c = [bc_x1,bc_x0,bc_y0,bc_y1]
 
         mass = []
         n_vect = []
@@ -175,8 +171,8 @@ class MatrixSolver:
         # file3D = XDMFFile(f"{self.path_sol}/n3D.xdmf")
         # file3D.parameters['rewrite_function_mesh'] = False
 
-        # phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
-        # phi = interpolate(phi, self.V)
+        phi = VerticalAverage(self.n0, quad_degree=20, degree=2)
+        phi = interpolate(phi, self.V)
        
 
         n0_array = [Function(self.V) for _ in range(Ns+1)]
@@ -190,17 +186,17 @@ class MatrixSolver:
             # n0_array[s] = interpolate(n0_array[s],self.V)
             # plot(n0_array[s])
             # plt.show()
-            n0_array[s] = interpolate(n0_array[s],self.V)
+            # n0_array[s] = interpolate(n0_array[s],self.V)
             # fig = plt.figure()
             # ax = fig.add_subplot(projection='3d')
             # sol = ax.scatter(self.mesh.coordinates()[:,0],self.mesh.coordinates()[:,1],self.mesh.coordinates()[:,2],c=n0_array[s].vector()[:])
             # plt.colorbar(sol)
             # plt.show()
-            sum += n0_array[s].vector()[:]
-        sum = sum/Ns
-        phi.vector()[:] = sum
-        phi = interpolate(phi,self.V)
-        phi_file.write_checkpoint(phi,"phi",0,XDMFFile.Encoding.HDF5, True)
+        #     sum += n0_array[s].vector()[:]
+        # sum = sum/Ns
+        # phi.vector()[:] = sum
+        # phi = interpolate(phi,self.V)
+        # phi_file.write_checkpoint(phi,"phi",0,XDMFFile.Encoding.HDF5, True)
         # fig = plt.figure()
         # ax = fig.add_subplot(projection='3d')
         # sol = ax.scatter(self.mesh.coordinates()[:,0],self.mesh.coordinates()[:,1],self.mesh.coordinates()[:,2],c=phi.vector()[:])
@@ -214,7 +210,7 @@ class MatrixSolver:
             print('time=%g: ' %(t*self.dt))
 
             a_c = self.Dxc * inner(grad(c),grad(w))*dx + self.gamma/(self.c_k + self.K_m)*phi*c*w*dx
-            L_c = f*w*dx
+            L_c = Vc*w*dx
             
             iter = 0  
             eps= 1.0
@@ -232,7 +228,7 @@ class MatrixSolver:
             # plt.show()
             matrix_list = []
             # first two rows
-            for s in range(2):
+            for s in range(1):
 
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                         + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
@@ -244,10 +240,10 @@ class MatrixSolver:
                 vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                             - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                             V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=1)
+                            epsilon=self.epsilon,c=C,s=(s+0.5)*dz,degree=1)
 
-                a00 = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
-                a01 = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
+                a00 = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx + 0.5/dz*vs*n*v*dx
+                a01 = -self.Dsn/(dz*dz)*n*v*dx + 0.5/(dz)*vs*n*v*dx
                 A0 = assemble(a00)
                 A0r = assemble(a01)
                 row1 = [0] * (Ns+1)
@@ -256,25 +252,26 @@ class MatrixSolver:
                 matrix_list.append(row1)
 
             # middle rows
-            for s in range(2,Ns-1):
+            for s in range(1,Ns):
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
                     + p_dc*pow(c,4)/(pow(K_dc,4)+pow(c,4))*exp(-pow((s-s_dc)/g_dc,2)))*(1-phi)',
                     p_csc=self.p_csc,p_dc=self.p_dc,K_csc=self.K_csc,K_dc=self.K_dc,g_csc=self.g_csc,g_dc=self.g_dc,
                     s_csc=self.s_csc,s_dc=self.s_dc,phi=phi,s=s*dz,c=C,degree=1)
                 K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                     d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=1)
-                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                vs_plus = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                         - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                         V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=(s+1)*dz,degree=1)
+                        epsilon=self.epsilon,c=C,s=(s+0.5)*dz,degree=1)
+                vs_minus = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
+                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
+                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
+                        epsilon=self.epsilon,c=C,s=(s-0.5)*dz,degree=1)
                 F = Expression("P - K", degree=1, P=P, K=K)
-                a = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + 2*self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
-                ar = -self.Dsn/(2*dz*dz)*n*v*dx + 1/(2*dz)*vs*n*v*dx
-                vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
-                        - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
-                        V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                        epsilon=self.epsilon,c=C,s=(s-1)*dz,degree=1)
-                al = -self.Dsn/(2*dz*dz)*n*v*dx - 1/(2*dz)*vs*n*v*dx
+                a = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + 2*self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx + 0.5/dz*vs_plus*n*v*dx - 0.5/dz*vs_minus*n*v*dx
+                ar = -self.Dsn/(dz*dz)*n*v*dx + 0.5/(dz)*vs_plus*n*v*dx
+                al = -self.Dsn/(dz*dz)*n*v*dx - 0.5/(dz)*vs_minus*n*v*dx
+
                 Ac = assemble(a)
                 Ar = assemble(ar)
                 Al = assemble(al)
@@ -285,7 +282,7 @@ class MatrixSolver:
                 new_row[s+1] = Ar
                 matrix_list.append(new_row)
 
-            s = Ns-1
+            s = Ns
             # last two rows
             while s <= Ns:
                 P = Expression('(p_csc*pow(c,4)/(pow(K_csc,4)+pow(c,4))*exp(-pow((s-s_csc)/g_csc,2)) \
@@ -295,13 +292,14 @@ class MatrixSolver:
                 K = Expression('d_tdc * exp(-((1-s)/g_tdc)) + d_n * (0.5+0.5*tanh(pow(epsilon_k,-1)*(c_N-c)))',
                         d_tdc=self.d_tdc,d_n=self.d_n,g_tdc=self.g_tdc,epsilon_k=self.epsilon_k,c_N=self.c_N,c=C,s=s*dz,degree=1)
                 F = Expression("P - K", degree=1, P=P, K=K)
-
-                aNN = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(2*dz*dz)*n*v*dx - n*v*F*dx
                 vs = Expression('V_plus*tanh(s/csi_plus)*tanh((1-s)/csi_plus)*(0.5+0.5*tanh((c-c_H)*pow(epsilon,-1))) \
                             - V_minus*tanh(s/csi_minus)*tanh(pow(1-s,2)/csi_minus)*(0.5+0.5*tanh((c_H-c)*pow(epsilon,-1)))',
                             V_plus=self.V_plus,V_minus=self.V_minus,csi_minus=self.csi_minus,csi_plus=self.csi_plus,c_H=self.c_H,
-                            epsilon=self.epsilon,c=C,s=(s-1)*dz,degree=1)
-                aNl = -self.Dsn/(2*dz*dz)*n*v*dx - 1/(2*dz)*vs*n*v*dx
+                            epsilon=self.epsilon,c=C,s=(s-0.5)*dz,degree=1)
+
+                aNN = (1/self.dt)*n*v*dx + self.Dxn*inner(grad(n),grad(v))*dx + self.Dsn/(dz*dz)*n*v*dx - n*v*F*dx - 0.5/dz*vs*n*v*dx
+                
+                aNl = -self.Dsn/(dz*dz)*n*v*dx - 0.5/(dz)*vs*n*v*dx
 
                 AN = assemble(aNN)
                 ANl = assemble(aNl)
@@ -352,7 +350,7 @@ class MatrixSolver:
             if t % self.save_interval == 0:
                 cfile.write_checkpoint(C,"c",t,XDMFFile.Encoding.HDF5, True)
                 phi_file.write_checkpoint(phi,"phi",t,XDMFFile.Encoding.HDF5, True)
-                # self.plot_solution3D(x, t, Ns)
+                self.plot_solution3D(x, t, Ns)
               
             # compute tumor composition
             csc = 0
@@ -403,6 +401,20 @@ class MatrixSolver:
         # plt.show()
 
         m = pv.read('boxmesh.vtk')        
+        temp_path = os.path.join(self.path_sol, 'solution')
+        if not os.path.exists(temp_path):
+            os.mkdir(temp_path)
+
+        sol_points = np.array(vec)
+
+        # riempire sol points
+        m1 = copy.deepcopy(m)
+        m1['solution'] = sol_points
+        m1.save(os.path.join(temp_path, f'sol_{t}.vtk'))
+
+    def save_slice(self,sol, t, s):
+        
+        m = pv.read('mesh3D.vtk')        
         temp_path = os.path.join(self.path_sol, 'solution')
         if not os.path.exists(temp_path):
             os.mkdir(temp_path)
